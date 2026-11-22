@@ -5,10 +5,12 @@
 Final Project Mata Kuliah **Dasar Pemrograman**
 Dosen Pengampu: Dr. Ir. Chaerur Rozikin, S.Kom., M.Kom
 
-- Nama : Ghifari Ahmad
+- Nama :
+-        Ghifari Ahmad
 -        Hilman
 -        Keisya
-- NIM : 2610631140162
+- NIM :
+-       2610631140162
 -       2610631140140
 -       2610631140147
 - Kelas : E
@@ -72,7 +74,7 @@ Jam operasional: **08.00 - 22.00**. Durasi booking minimal **1 jam**.
 
 | Username | Password |
 |----------|----------|
-| admin | admin123 |
+| Budi Santoso | 123456|
 
 Akun user dibuat lewat menu **Registrasi**.
 
