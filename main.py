@@ -210,8 +210,8 @@ def menu_user(user):
     while True:
         print("\n===== SPACE BOOK =====")
         print("1. Lihat Fasilitas")
-        print("2. Cek Ketersediaan Jadwal (menyusul)")
-        print("3. Booking Fasilitas (menyusul)")
+        print("2. Cek Ketersediaan Jadwal")
+        print("3. Booking Fasilitas)")
         print("4. Riwayat Booking (menyusul)")
         print("5. Pembayaran (menyusul)")
         print("6. Logout")
@@ -220,6 +220,8 @@ def menu_user(user):
             lihat_fasilitas()
         elif pilih == "2":
             cek_ketersediaan()
+        elif pilih == "3":
+            booking_fasilitas(user)
         elif pilih == "6":
             print("Logout berhasil.")
             break
@@ -324,6 +326,149 @@ def cek_ketersediaan():
     else:
         print("Jadwal TERSEDIA.")
     tampil_jadwal_harian(id_f, tanggal)
-if __name__ == "__main__":
+
+def siapkan_kolom_booking():
+    con = koneksi()
+    kolom = [r[1] for r in con.execute("PRAGMA table_info(booking)").fetchall()]
+    for nama in ("nama_penyewa", "no_hp", "catatan"):
+        if nama not in kolom:
+            con.execute(f"ALTER TABLE booking ADD COLUMN {nama} TEXT")
+    con.commit()
+    con.close()
+
+
+def rekomendasi_slot(id_f, tanggal, mulai):
+    m_minta = jam_ke_menit(mulai)
+    bebas = []
+    for jam in range(JAM_BUKA, JAM_TUTUP):
+        a = f"{jam:02d}:00"
+        b = f"{jam + 1:02d}:00"
+        if not cek_bentrok(id_f, tanggal, a, b):
+            bebas.append((jam, a, b))
+    sesudah = [s for s in bebas if s[0] * 60 >= m_minta]
+    pilihan = sesudah if sesudah else bebas
+    print("Slot tidak tersedia.")
+    if not pilihan:
+        print("Tidak ada slot kosong pada tanggal ini.")
+        return
+    print("Rekomendasi:")
+    for _, a, b in pilihan:
+        print(f"{a} - {b}")
+
+
+def booking_fasilitas(user):
+    siapkan_kolom_booking()
+    print("\n=== BOOKING FASILITAS ===")
+    lihat_fasilitas()
+    data = input_jadwal()
+    if not data:
+        return
+    id_f, tanggal, mulai, selesai = data
+
+    if cek_bentrok(id_f, tanggal, mulai, selesai):
+        print("ERROR")
+        print("Jadwal sudah digunakan. Silakan pilih jam lain.")
+        rekomendasi_slot(id_f, tanggal, mulai)
+        return
+
+    nama = input("Nama Penyewa      : ").strip()
+    no_hp = input("Nomor HP          : ").strip()
+    catatan = input("Catatan Tambahan  : ").strip()
+    if not nama:
+        print("ERROR: Nama penyewa tidak boleh kosong.")
+        return
+    if not (no_hp.isdigit() and len(no_hp) >= 10):
+        print("ERROR: Nomor HP minimal 10 digit angka.")
+        return
+
+    con = koneksi()
+    harga = con.execute("SELECT harga_per_jam FROM fasilitas WHERE id=?",
+                        (id_f,)).fetchone()[0]
+    cur = con.execute(
+        "INSERT INTO booking (id_fasilitas, id_user, tanggal, jam_mulai, jam_selesai, "
+        "status_booking, status_bayar, nama_penyewa, no_hp, catatan) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (id_f, user[0], tanggal, mulai, selesai, "MENUNGGU PEMBAYARAN",
+         "BELUM LUNAS", nama, no_hp, catatan))
+    con.commit()
+    kode = f"BK{cur.lastrowid:04d}"
+    con.close()
+
+    durasi = (jam_ke_menit(selesai) - jam_ke_menit(mulai)) / 60
+    total = int(durasi * harga)
+    print("\nBooking Berhasil")
+    print(f"Kode Booking : {kode}")
+    print(f"Total Biaya  : Rp {total:,}")
+    print("Status       : MENUNGGU PEMBAYARAN")
+
+def menu_admin(user):
+    while True:
+        print("\n===== DASHBOARD ADMIN =====")
+        print("1. Kelola Fasilitas")
+        print("2. Lihat Booking (menyusul)")
+        print("3. Validasi Pembayaran (menyusul)")
+        print("4. Batalkan Booking (menyusul)")
+        print("5. Laporan (menyusul)")
+        print("6. Logout")
+        pilih = input("Pilih menu: ").strip()
+        if pilih == "1":
+            kelola_fasilitas()
+        elif pilih == "6":
+            print("Logout berhasil.")
+            break
+        elif pilih in ("2", "3", "4", "5"):
+            print("Fitur ini menyusul.")
+        else:
+            print("Pilihan tidak valid.")
+
+
+def menu_user(user):
+    while True:
+        print("\n===== SPACE BOOK =====")
+        print("1. Lihat Fasilitas")
+        print("2. Cek Ketersediaan Jadwal")
+        print("3. Booking Fasilitas")
+        print("4. Riwayat Booking (menyusul)")
+        print("5. Pembayaran (menyusul)")
+        print("6. Logout")
+        pilih = input("Pilih menu: ").strip()
+        if pilih == "1":
+            lihat_fasilitas()
+        elif pilih == "2":
+            cek_ketersediaan()
+        elif pilih == "3":
+            booking_fasilitas(user)
+        elif pilih == "6":
+            print("Logout berhasil.")
+            break
+        elif pilih in ("4", "5"):
+            print("Fitur ini menyusul.")
+        else:
+            print("Pilihan tidak valid.")
+
+
+def menu_awal():
+    while True:
+        print("\n===== SPACE BOOK =====")
+        print("1. Registrasi")
+        print("2. Login")
+        print("3. Keluar")
+        pilih = input("Pilih menu: ").strip()
+        if pilih == "1":
+            registrasi()
+        elif pilih == "2":
+            user = login()
+            if user:
+                if user[2] == "admin":
+                    menu_admin(user)
+                else:
+                    menu_user(user)
+        elif pilih == "3":
+            print("Terima kasih.")
+            break
+        else:
+            print("Pilihan tidak valid.")
+
+if __name__ == "__main__": 
     init_db()
     menu_awal()
