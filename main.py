@@ -218,6 +218,8 @@ def menu_user(user):
         pilih = input("Pilih menu: ").strip()
         if pilih == "1":
             lihat_fasilitas()
+        elif pilih == "2":
+            cek_ketersediaan()
         elif pilih == "6":
             print("Logout berhasil.")
             break
@@ -225,6 +227,103 @@ def menu_user(user):
             print("Fitur ini menyusul.")
         else:
             print("Pilihan tidak valid.")
+
+from datetime import datetime
+
+JAM_BUKA = 8
+JAM_TUTUP = 22
+
+
+def jam_ke_menit(jam):
+    try:
+        j = datetime.strptime(jam, "%H:%M")
+        return j.hour * 60 + j.minute
+    except ValueError:
+        return None
+
+
+def tanggal_valid(tgl):
+    try:
+        datetime.strptime(tgl, "%d-%m-%Y")
+        return True
+    except ValueError:
+        return False
+
+
+def input_jadwal():
+    id_f = input("ID Fasilitas         : ").strip()
+    tanggal = input("Tanggal (DD-MM-YYYY) : ").strip()
+    mulai = input("Jam Mulai (HH:MM)    : ").strip()
+    selesai = input("Jam Selesai (HH:MM)  : ").strip()
+
+    if not id_f.isdigit():
+        print("ERROR: ID fasilitas harus angka.")
+        return None
+    if not tanggal_valid(tanggal):
+        print("ERROR: Format tanggal salah. Contoh: 10-06-2026")
+        return None
+    m = jam_ke_menit(mulai)
+    s = jam_ke_menit(selesai)
+    if m is None or s is None:
+        print("ERROR: Format jam salah. Contoh: 18:00")
+        return None
+    if m < JAM_BUKA * 60 or s > JAM_TUTUP * 60:
+        print("ERROR: Jam operasional 08:00 - 22:00.")
+        return None
+    if s - m < 60:
+        print("ERROR: Durasi booking minimal 1 jam.")
+        return None
+
+    con = koneksi()
+    ada = con.execute("SELECT id FROM fasilitas WHERE id=?", (int(id_f),)).fetchone()
+    con.close()
+    if not ada:
+        print("ERROR: ID fasilitas tidak ditemukan.")
+        return None
+
+    mulai = f"{m // 60:02d}:{m % 60:02d}"
+    selesai = f"{s // 60:02d}:{s % 60:02d}"
+    return int(id_f), tanggal, mulai, selesai
+
+
+def cek_bentrok(id_f, tanggal, mulai, selesai):
+    m_baru = jam_ke_menit(mulai)
+    s_baru = jam_ke_menit(selesai)
+    con = koneksi()
+    rows = con.execute(
+        "SELECT jam_mulai, jam_selesai FROM booking "
+        "WHERE id_fasilitas=? AND tanggal=? AND status_booking != 'DIBATALKAN'",
+        (id_f, tanggal)).fetchall()
+    con.close()
+    for jam_m, jam_s in rows:
+        m_lama = jam_ke_menit(jam_m)
+        s_lama = jam_ke_menit(jam_s)
+        if m_baru < s_lama and s_baru > m_lama:
+            return True
+    return False
+
+
+def tampil_jadwal_harian(id_f, tanggal):
+    print(f"\nJadwal {tanggal}")
+    for jam in range(JAM_BUKA, JAM_TUTUP):
+        mulai = f"{jam:02d}:00"
+        selesai = f"{jam + 1:02d}:00"
+        status = "BOOKED" if cek_bentrok(id_f, tanggal, mulai, selesai) else "KOSONG"
+        print(f"{mulai}-{selesai}  {status}")
+
+
+def cek_ketersediaan():
+    print("\n=== CEK KETERSEDIAAN JADWAL ===")
+    lihat_fasilitas()
+    data = input_jadwal()
+    if not data:
+        return
+    id_f, tanggal, mulai, selesai = data
+    if cek_bentrok(id_f, tanggal, mulai, selesai):
+        print("Jadwal TIDAK tersedia (sudah dipakai).")
+    else:
+        print("Jadwal TERSEDIA.")
+    tampil_jadwal_harian(id_f, tanggal)
 if __name__ == "__main__":
     init_db()
     menu_awal()
